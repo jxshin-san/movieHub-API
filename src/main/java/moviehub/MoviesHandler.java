@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class MoviesHandler extends BaseHttpHandler {
     private final MoviesStore store;
@@ -36,8 +37,56 @@ public class MoviesHandler extends BaseHttpHandler {
     }
 
     private void handleGetValues(HttpExchange ex) throws IOException {
+        String query = ex.getRequestURI().getRawQuery();
         List<Movie> movies = store.getAll();
+
+        if (query != null && !query.isBlank()) {
+            if (hasQueryParam(query)) {
+                String yearParam = getQueryParam(query);
+
+                if (yearParam == null || yearParam.isBlank()) {
+                    sendError(ex, 400, "Некорректный параметр запроса - 'year'");
+                    return;
+                }
+
+                try {
+                    int year = Integer.parseInt(yearParam);
+                    if (year <= 0) {
+                        sendError(ex, 400, "Некорректный параметр запроса - 'year'");
+                        return;
+                    }
+
+                    movies = movies.stream()
+                            .filter(movie -> movie.getYear() != null && movie.getYear() == year)
+                            .collect(Collectors.toList());
+                } catch (NumberFormatException e) {
+                    sendError(ex, 400, "Некорректный параметр запроса - 'year'");
+                    return;
+                }
+            }
+        }
+
         sendJson(ex, 200, gson.toJson(movies));
+    }
+
+    private boolean hasQueryParam(String query) {
+        for (String pair : query.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts[0].equals("year")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getQueryParam(String query) {
+        for (String pair : query.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts[0].equals("year")) {
+                return parts.length > 1 ? parts[1] : "";
+            }
+        }
+        return null;
     }
 
     private void handleGetById(HttpExchange ex, String path) throws IOException {
@@ -64,7 +113,7 @@ public class MoviesHandler extends BaseHttpHandler {
         try {
             Movie movie = gson.fromJson(body, Movie.class);
 
-            if (movie.getId() == null || movie.getTitle() == null || movie.getTitle().isBlank()) {
+            if (movie == null || movie.getId() == null || movie.getTitle() == null || movie.getTitle().isBlank()) {
                 sendError(ex, 400, "Некорректные данные фильма");
                 return;
             }

@@ -13,8 +13,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Тесты API фильмов")
 public class MoviesApiTest {
@@ -203,5 +202,48 @@ public class MoviesApiTest {
         );
 
         assertEquals(404, getResponse.statusCode());
+    }
+
+    @Test
+    @DisplayName("Получение фильмов с фильтрацией по году (успех)")
+    void testGetMoviesByYearSuccess() throws Exception {
+        store.add(new Movie("1", "Interstellar", 2014));
+        store.add(new Movie("2", "Whiplash", 2014));
+        store.add(new Movie("3", "Inception", 2010));
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies?year=2014"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = client.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+        );
+
+        assertEquals(200, response.statusCode());
+        String body = response.body().trim();
+        assertTrue(body.contains("Interstellar"));
+        assertTrue(body.contains("Whiplash"));
+        assertFalse(body.contains("Inception"));
+    }
+
+    @Test
+    @DisplayName("Получение фильмов с некорректным параметром year")
+    void testGetMoviesByInvalidYear() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies?year=abc"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = client.send(
+                request,
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+        );
+
+        assertEquals(400, response.statusCode());
+        //System.out.println("Status = " + response.statusCode());
+        //System.out.println("Body = " + response.body());
+        assertTrue(response.body().contains("Некорректный параметр запроса"));
     }
 }
